@@ -25,16 +25,26 @@ local function online_data()
         end
     end)
 
-    local fd = util.execi('/usr/bin/awk \'BEGIN{while ((getline < "/tmp/dhcp.leases") > 0){a[$3]=$4;}while ((getline < "/proc/net/arp") > 0){if (!a[$1]){a[$1]="?";}if (match($3,"0x[26]")){"ping -q -c 1 "$1" &";if (b[$1]){b[$1]=b[$1]"/"$1;}else{b[$1]=$1;}c[$1]=$6;}}while (("ip -6 neighbor show | grep -v fe80" | getline) > 0){if (b[$1]) {"ping -q -c 1 "$1" &";b[$1]=b[$1]"/"$1;}}for (ip in b){print(a[ip],b[ip],ip,c[ip]);}}\' ')
+    -- 从 /tmp/dhcp.leases 文件中读取主机名
+    local leases_fd = io.open("/tmp/dhcp.leases", "r")
+    if leases_fd then
+        for ln in leases_fd:lines() do
+            local ts, mac, ip, name = ln:match("^(%S+) (%S+) (%S+) (%S+)")
+            if ip and name and name ~= "*" then
+                dhcp_hostnames[ip] = name
+            end
+        end
+        leases_fd:close()
+    end
 
+    -- 使用 ip neigh 命令获取 IPv4 邻居信息
+    local fd = io.popen('ip -4 neigh')
     local seen_devices = {}
 
-    while true do
-        local ln = fd()
-        if ln == nil then break end
-        local name, ip, mac, dev = ln:match("^(%S+) (%S+) (%S+) (%S+)")
-        if mac and ip and dev then
-            local hostname = dhcp_hostnames[ip] or name
+    for ln in fd:lines() do
+        local ip, dev, mac, state = ln:match("^(%S+) dev (%S+) lladdr (%S+) (%S+)")
+        if ip and dev and mac and state then
+            local hostname = dhcp_hostnames[ip] or "?"
             local device_key = mac:lower() .. "-" .. ip
             seen_devices[device_key] = true
             rv[#rv+1] = {
@@ -46,6 +56,7 @@ local function online_data()
         end
     end
 
+    fd:close()
     return rv
 end
 
