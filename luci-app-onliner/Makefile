@@ -1,5 +1,7 @@
-# Copyright (C) 2016 Openwrt.org
+# SPDX-License-Identifier: GPL-3.0-or-later
 #
+# Copyright (C) 2016 Openwrt.org
+# Copyright (C) 2024 gitbruc <nobody3@duck.com>
 # This is free software, licensed under the Apache License, Version 2.0 .
 #
 
